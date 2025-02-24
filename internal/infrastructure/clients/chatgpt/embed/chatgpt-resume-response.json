@@ -1,0 +1,12 @@
+{
+    "choices": [
+        {
+            "message": {
+                "function_call": {
+                    "name":"resume",
+                    "arguments": "{\"title\":\"title test\",\"description\":\"description test.\",\"briefResume\":\"brief test\",\"mediumResume\":\"medium test\"}"
+                }
+            }
+        }
+    ]
+}

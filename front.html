@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExplicAI - Ferramenta de Resumo de Áudio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem 2rem;
+            text-align: center;
+        }
+        main {
+            padding: 2rem;
+        }
+        .record-section, .summary-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.7rem 1.5rem;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .progress-bar {
+            height: 10px;
+            border-radius: 5px;
+            background-color: #ddd;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-bar-failed .progress-bar-inner {
+            background-color: red;
+        }
+
+        .progress-bar-on .progress-bar-inner {
+            background-color: rgb(0, 51, 255);
+        }
+
+        .delete-button {
+            background-color: #f44336; /* Vermelho */
+            color: white;
+            border: none;
+            padding: 0.7rem 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .delete-button:hover {
+            background-color: #d32f2f; /* Tom mais escuro no hover */
+        }
+
+        #dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5); /* Sombra */
+            backdrop-filter: blur(5px); /* Blur no fundo */
+            z-index: 999; /* Atrás do diálogo */
+        }
+
+        #dialog-confirmation {
+            position: fixed;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -30%);
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            z-index: 1000;
+            width: 300px;
+        }
+
+        #dialog-confirm,
+        #dialog-cancel {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.7rem 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        #dialog-cancel {
+            background-color: #f44336;
+        }
+
+        #dialog-confirm:hover {
+            background-color: #45a049;
+        }
+
+        #dialog-cancel:hover {
+            background-color: #d32f2f;
+        }
+
+        #summary-detail {
+            position: fixed;
+            top: 10%;
+            left: 10%;
+            width: 80%;
+            height: 80%;
+            overflow: auto;
+            z-index: 1000; /* Acima do overlay */
+            border-radius: 8px;
+        }
+
+        #detail-content {
+            max-width: 700px; /* Limita a largura para cerca de 60-75 caracteres por linha */
+            line-height: 1.6; /* Espaçamento entre linhas para facilitar a leitura */
+            font-size: 16px; /* Tamanho adequado para leitura confortável */
+            margin: 0 auto; /* Centraliza o texto dentro do container */
+            text-align: justify; /* Justifica o texto para aparência profissional */
+        }
+
+        #record-feedback {
+            margin-top: 1rem;
+            font-size: 1rem;
+            text-align: center;
+            height: 60px; /* Altura fixa */
+        }
+
+        #waveform-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 0.5rem;
+            gap: 5px;
+            height: 30px; /* Altura específica para as ondas */
+        }
+
+        .wave {
+            width: 5px;
+            height: 10px; /* Altura inicial */
+            background-color: #4CAF50;
+            animation: wave-animation 1s infinite ease-in-out;
+            border-radius: 2px;
+            max-height: 30px; /* Limite máximo */
+        }
+
+        @keyframes wave-animation {
+            0%, 100% { height: 10px; }
+            50% { height: 25px; } /* O pico da onda está dentro do limite */
+        }
+
+        .wave:nth-child(1) { animation-delay: 0s; }
+        .wave:nth-child(2) { animation-delay: 0.2s; }
+        .wave:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes wave-animation {
+            0%, 100% { height: 10px; }
+            50% { height: 30px; }
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: flex-start; /* Alinha os botões à esquerda */
+            gap: 10px; /* Espaçamento horizontal entre os botões */
+            margin-top: 10px; /* Espaçamento entre os botões e o conteúdo acima */
+        }
+
+        .detail-button,
+        .delete-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .detail-button {
+            background-color: #4CAF50; /* Verde */
+            color: white;
+        }
+
+        .detail-button:hover {
+            background-color: #45a049; /* Tom mais escuro no hover */
+        }
+
+        .delete-button {
+            background-color: #f44336; /* Vermelho */
+            color: white;
+        }
+
+        .delete-button:hover {
+            background-color: #d32f2f; /* Tom mais escuro no hover */
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ExplicAI - Ferramenta de Resumo de Áudio</h1>
+    </header>
+    <main>
+        <section class="record-section">
+            <h2>Gravar Áudio</h2>
+            <button id="start-record">Iniciar Gravação</button>
+            <button id="stop-record" disabled>Parar Gravação</button>
+            <div id="record-feedback" style="display: none;">
+                <p><strong>Tempo de gravação:</strong> <span id="record-timer">00:00</span></p>
+                <div id="waveform-container">
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                </div>
+            </div>
+            <audio id="audio-preview" controls style="display: none;"></audio>
+        </section>
+
+        <section class="summary-section">
+            <h2>Resumos Anteriores</h2>
+            <ul id="summary-list">
+                <li>Carregando resumos...</li>
+            </ul>
+        </section>
+
+        <div id="dialog-overlay" style="display: none;"></div>
+        <div id="summary-detail" style="display: none; padding: 2rem; background: white; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            <button id="close-detail" style="margin-bottom: 1rem;">Fechar</button>
+            <div id="detail-content"></div>
+        </div>
+
+        <div id="dialog-overlay" style="display: none;"></div>
+        <div id="dialog-confirmation" style="display: none; padding: 2rem; background: white; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            <p id="dialog-text"></p>
+            <button id="dialog-confirm" style="margin-right: 10px;">Confirmar</button>
+            <button id="dialog-cancel">Cancelar</button>
+        </div>
+    </main>
+
+    <script>
+        const startButton = document.getElementById('start-record');
+        const stopButton = document.getElementById('stop-record');
+        const audioPreview = document.getElementById('audio-preview');
+        const summaryList = document.getElementById('summary-list');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        const baseUrl = "http://localhost:8080";
+
+        const statusMap = {
+            "RECEIVED_FILE": "Arquivo recebido",
+            "TRANSCRIBED_FAILED": "Falha na transcrição do áudio",
+            "TRANSCRIBED": "Transcrição completada",
+            "SUMMARIZED_FAILED": "Melhoria de texto falhou",
+            "SUMMARIZED": "Finalizado com sucesso"
+        };
+
+        async function fetchSummaries() {
+            try {
+                const response = await fetch(`${baseUrl}/summaries`);
+                if (response.ok) {
+                    const { data: summaries } = await response.json();
+                    summaryList.innerHTML = '';
+                    summaries.forEach(summary => {
+                        const li = document.createElement('li');
+
+                        li.innerHTML = `
+                            <strong>${summary.title || "Sem título"}</strong><br>
+                            <em>Status:</em> ${statusMap[summary.status] || summary.status}<br>
+                            <em>Criado em:</em> ${new Date(summary.createdAt).toLocaleString()}<br>
+                            <em>Última atualização:</em> ${new Date(summary.updatedAt).toLocaleString()}<br>
+                            <div class="progress-bar">
+                                <div class="progress-bar-inner" style="width: ${summary.progress}%;"></div>
+                            </div>
+                        `;
+
+                        if (summary.status === "TRANSCRIBED_FAILED" || summary.status === "SUMMARIZED_FAILED") {
+                            li.classList.add("progress-bar-failed");
+                            li.innerHTML += `<div class="failure-icon" style="color: red; font-weight: bold;">⚠️</div>`;
+                        }
+
+                        if (summary.status === "RECEIVED_FILE" || summary.status === "TRANSCRIBED") {
+                            li.classList.add("progress-bar-on");
+                            li.innerHTML += `<div class="failure-icon" style="color: red; font-weight: bold;">▶</div>`;
+                        }
+
+                        // Container para os botões
+                        const buttonContainer = document.createElement('div');
+                        buttonContainer.className = 'button-container';
+
+                        if (summary.status === "SUMMARIZED") {
+                            const detailButton = document.createElement('button');
+                            detailButton.className = 'detail-button';
+                            detailButton.textContent = "Ver Detalhes";
+                            detailButton.addEventListener('click', () => fetchSummaryDetail(summary.externalId));
+                            buttonContainer.appendChild(detailButton);
+                        }
+
+                        // Botão "Deletar"
+                        const deleteButton = document.createElement('button');
+                        deleteButton.className = 'delete-button';
+                        deleteButton.textContent = "Deletar";
+                        deleteButton.addEventListener('click', () => openDeleteConfirmation(summary.externalId, li));
+                        buttonContainer.appendChild(deleteButton);
+                        li.appendChild(buttonContainer);
+
+
+                        summaryList.appendChild(li);
+                    });
+                } else {
+                    summaryList.innerHTML = '<li>Falha ao carregar os resumos</li>';
+                }
+            } catch (error) {
+                summaryList.innerHTML = '<li>Erro ao carregar os resumos</li>';
+            }
+        }
+
+        async function fetchSummaryDetail(externalId) {
+            try {
+                const response = await fetch(`${baseUrl}/summaries/${externalId}`);
+                if (response.ok) {
+                    const summary = await response.json();
+                    document.getElementById('detail-content').innerHTML = `
+                        <h3>${summary.title || "Sem título"}</h3>
+                        <p><i>${summary.description || "Sem descrição"}</i></p>
+                        <hr>
+                        <p><b>TL;DR:</b> <i>${summary.briefResume}</i></p>
+                        <p><b>Resumo:</b> <i>${summary.mediumResume}</i></p>
+                        <hr>
+                        <p><b>Texto na íntegra:</b></p>
+                        <p>${summary.fullText.replace(/\n/g, '<br>')}</p>
+                    `;
+                    document.getElementById('dialog-overlay').style.display = 'block';
+                    document.getElementById('summary-detail').style.display = 'block';
+                } else {
+                    alert('Falha ao carregar detalhes do resumo');
+                }
+            } catch (error) {
+                alert('Erro ao carregar detalhes do resumo');
+            }
+        }
+
+        document.getElementById('close-detail').addEventListener('click', () => {
+            document.getElementById('dialog-overlay').style.display = 'none';
+            document.getElementById('summary-detail').style.display = 'none';
+        });
+
+        startButton.addEventListener('click', async () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Seu navegador não suporta gravação de áudio');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioChunks = [];
+
+                    const formData = new FormData();
+                    formData.append('file', audioBlob, 'gravacao.wav');
+
+                    try {
+                        const response = await fetch(`${baseUrl}/upload`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            startLongPolling(); // Inicia o long polling após o envio bem-sucedido
+                        } else {
+                            alert('Falha ao enviar o áudio');
+                        }
+                    } catch (error) {
+                        alert('Erro ao enviar o áudio');
+                    }
+
+                    // Ocultar o feedback visual
+                    document.getElementById('record-feedback').style.display = 'none';
+                };
+
+                // Exibir o feedback visual e iniciar o contador
+                document.getElementById('record-feedback').style.display = 'block';
+                startTimer();
+
+                mediaRecorder.start();
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } catch (error) {
+                alert('Não foi possível acessar seu microfone');
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            clearInterval(timerInterval); // Parar o contador
+        });
+
+        let timerInterval;
+        let secondsElapsed = 0;
+
+        function startTimer() {
+            secondsElapsed = 0;
+            const timerElement = document.getElementById('record-timer');
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                const minutes = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+                const seconds = String(secondsElapsed % 60).padStart(2, '0');
+                timerElement.textContent = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        const FINAL_STATUSES = ["TRANSCRIBED_FAILED", "SUMMARIZED_FAILED", "SUMMARIZED"];
+
+        async function startLongPolling() {
+            const interval = 1000; // Intervalo de 1 segundo
+            let allCompleted = false;
+
+            async function poll() {
+                try {
+                    const response = await fetch(`${baseUrl}/summaries`);
+                    if (response.ok) {
+                        const { data: summaries } = await response.json();
+
+                        // Atualiza a interface com os resumos mais recentes
+                        summaryList.innerHTML = '';
+                        summaries.forEach(summary => {
+                            const li = document.createElement('li');
+                            
+
+                            li.innerHTML = `
+                                <strong>${summary.title || "Sem título"}</strong><br>
+                                <em>Status:</em> ${statusMap[summary.status] || summary.status}<br>
+                                <em>Criado em:</em> ${new Date(summary.createdAt).toLocaleString()}<br>
+                                <em>Última atualização:</em> ${new Date(summary.updatedAt).toLocaleString()}<br>
+                                <div class="progress-bar">
+                                    <div class="progress-bar-inner" style="width: ${summary.progress}%;"></div>
+                                </div>
+                            `;
+
+                            if (summary.status === "TRANSCRIBED_FAILED" || summary.status === "SUMMARIZED_FAILED") {
+                                li.classList.add("progress-bar-failed");
+                                li.innerHTML += `<div class="failure-icon" style="color: red; font-weight: bold;">⚠️</div>`;
+                            }
+
+                            if (summary.status === "RECEIVED_FILE" || summary.status === "TRANSCRIBED") {
+                                li.classList.add("progress-bar-on");
+                                li.innerHTML += `<div class="failure-icon" style="color: red; font-weight: bold;">▶</div>`;
+                            }
+
+                            if (summary.status === "SUMMARIZED") {
+                                li.innerHTML += `<p>${summary.description}</p>`;
+                                const detailButton = document.createElement('button');
+                                detailButton.className = 'detail-button';
+                                detailButton.textContent = "Ver Detalhes";
+                                detailButton.addEventListener('click', () => fetchSummaryDetail(summary.externalId));
+
+                                li.appendChild(detailButton);
+                            }
+
+                            const deleteButton = document.createElement('button');
+                            deleteButton.className = 'delete-button';
+                            deleteButton.textContent = "Deletar";
+                            deleteButton.style.marginLeft = "10px"; // Espaçamento entre os botões
+                            deleteButton.addEventListener('click', () => openDeleteConfirmation(summary.externalId, li));
+                            li.appendChild(deleteButton);
+
+                            summaryList.appendChild(li);
+                        });
+
+                        // Verifica se todos os itens estão em status final
+                        allCompleted = summaries.every(summary => FINAL_STATUSES.includes(summary.status));
+                        if (!allCompleted) {
+                            setTimeout(poll, interval); // Continua o polling se não estiver completo
+                        }
+                    } else {
+                        console.error("Erro ao buscar os resumos");
+                    }
+                } catch (error) {
+                    console.error("Erro no polling:", error);
+                }
+            }
+
+            poll(); // Inicia o polling
+        }
+
+        function openDeleteConfirmation(externalId, listItem) {
+            // Atualize o texto da dialog
+            document.getElementById('dialog-text').textContent = "Você tem certeza que deseja deletar este resumo?";
+
+            // Exiba a dialog
+            document.getElementById('dialog-overlay').style.display = 'block';
+            document.getElementById('dialog-confirmation').style.display = 'block';
+
+            // Botão de confirmar
+            const confirmButton = document.getElementById('dialog-confirm');
+            confirmButton.onclick = () => {
+                closeDialog();
+                deleteSummary(externalId, listItem); // Chama a função de deletar
+            };
+
+            // Botão de cancelar
+            const cancelButton = document.getElementById('dialog-cancel');
+            cancelButton.onclick = closeDialog;
+        }
+
+        function closeDialog() {
+            document.getElementById('dialog-overlay').style.display = 'none';
+            document.getElementById('dialog-confirmation').style.display = 'none';
+        }
+
+        async function deleteSummary(externalId, listItem) {
+                const url = `${baseUrl}/summaries/${externalId}`;
+
+                try {
+                    const response = await fetch(url, { method: 'DELETE' });
+
+                    if (response.status === 200) {
+                        listItem.remove(); // Remove o item da lista
+                    } else if (response.status === 404) {
+                        alert('Resumo não encontrado!');
+                    } else {
+                        alert('Erro interno ao tentar deletar o resumo. Tente novamente mais tarde.');
+                    }
+                } catch (error) {
+                    alert('Erro ao conectar com o servidor. Tente novamente mais tarde.');
+                }
+        }
+
+        fetchSummaries();
+    </script>
+</body>
+</html>
